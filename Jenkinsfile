@@ -9,7 +9,7 @@ pipeline {
     // ─── Global environment variables ─────────────────────────────────────────
     environment {
         GITHUB_REPO      = 'https://github.com/harshithld0141-rgb/JenkinsHelloWorld.git'
-        GITHUB_BRANCH    = 'main'
+        GITHUB_BRANCH    = 'master'
         DOCKER_IMAGE     = 'myapp'                        // local image name
         DOCKER_TAG       = "${env.BUILD_NUMBER}"          // unique tag per build
         DOCKER_LATEST    = 'latest'
