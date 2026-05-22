@@ -3,16 +3,17 @@ pipeline {
 
     // ─── Poll SCM: check GitHub every 5 minutes ───────────────────────────────
     triggers {
-        pollSCM('H/5 * * * *')   // cron: every 5 min  |  change to 'H * * * *' for hourly
+        pollSCM('H/30 * * * *')
     }
 
     // ─── Global environment variables ─────────────────────────────────────────
     environment {
         GITHUB_REPO      = 'https://github.com/harshithld0141-rgb/JenkinsHelloWorld.git'
         GITHUB_BRANCH    = 'master'
-        DOCKER_IMAGE     = 'myapp'                        // local image name
-        DOCKER_TAG       = "${env.BUILD_NUMBER}"          // unique tag per build
+        DOCKER_IMAGE     = 'myapp'
+        DOCKER_TAG       = "${env.BUILD_NUMBER}"
         DOCKER_LATEST    = 'latest'
+        EXPORT_DIR       = '/var/lib/jenkins/docker-exports'
     }
 
     stages {
@@ -23,7 +24,6 @@ pipeline {
                 echo "📥 Pulling code from GitHub branch: ${env.GITHUB_BRANCH}"
                 git branch: "${env.GITHUB_BRANCH}",
                     url: "${env.GITHUB_REPO}"
-                    // credentialsId: 'github-credentials'   // uncomment for private repos
             }
         }
 
@@ -41,17 +41,33 @@ pipeline {
             }
         }
 
+        // ── 3. Export Image as TAR ─────────────────────────────────────────────
+        stage('Export Image as TAR') {
+            steps {
+                echo "📦 Saving Docker image as tar..."
+                sh """
+                    # Save image to tar
+                    docker save -o ${env.EXPORT_DIR}/${env.DOCKER_IMAGE}-${env.DOCKER_TAG}.tar \
+                        ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+
+                    # Show file size and location
+                    ls -lh ${env.EXPORT_DIR}/${env.DOCKER_IMAGE}-${env.DOCKER_TAG}.tar
+                    echo "✅ TAR saved: ${env.EXPORT_DIR}/${env.DOCKER_IMAGE}-${env.DOCKER_TAG}.tar"
+
+                    # Clean up old tars (keep last 3 builds only)
+                    ls -t ${env.EXPORT_DIR}/*.tar | tail -n +4 | xargs rm -f 2>/dev/null || true
+                """
+            }
+        }
 
         // ── 4. Deploy locally on same instance ────────────────────────────────
         stage('Deploy') {
             steps {
                 echo "🟢 Deploying container on this instance..."
                 sh """
-                    # Stop & remove old container if running
                     docker stop myapp-container 2>/dev/null || true
                     docker rm   myapp-container 2>/dev/null || true
 
-                    # Run new container
                     docker run -d \
                         --name myapp-container \
                         --restart unless-stopped \
@@ -69,7 +85,8 @@ pipeline {
             sh 'docker image prune -f'
         }
         success {
-            echo "✅ Pipeline completed successfully! Image: ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}"
+            echo "✅ Pipeline completed! Image: ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}"
+            echo "📦 TAR location: ${env.EXPORT_DIR}/${env.DOCKER_IMAGE}-${env.DOCKER_TAG}.tar"
         }
         failure {
             echo "❌ Pipeline FAILED. Check logs above for details."
