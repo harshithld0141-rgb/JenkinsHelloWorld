@@ -55,7 +55,7 @@ pipeline {
                     docker run -d \
                         --name myapp-container \
                         --restart unless-stopped \
-                        -p 8080:8080 \
+                        -p 9090:8080 \
                         ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
                 """
             }
